@@ -1,0 +1,11 @@
+{
+  "formatVersion": 1,
+  "theme": "astro-cactus",
+  "repository": "https://github.com/chrismwilliams/astro-theme-cactus.git",
+  "verifiedReleases": [
+    {
+      "ref": "v8.3.0",
+      "commit": "82eabb6151a8e47838cb7f6d12ea29451926bd3e"
+    }
+  ]
+}

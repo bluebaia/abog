@@ -1,0 +1,56 @@
+name: Publish template setup page
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "setup/**"
+      - "scripts/blog-config.mjs"
+      - "docs/configuration.md"
+      - ".github/workflows/publish-setup-page.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: template-setup-page
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: vars.PUBLISH_SETUP_PAGE == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check out the template source
+        uses: actions/checkout@v4
+
+      - name: Prepare the small public setup site
+        run: |
+          mkdir -p _site/setup _site/scripts _site/docs
+          cp setup/index.html setup/configure.js setup/style.css _site/setup/
+          cp scripts/blog-config.mjs _site/scripts/
+          cp docs/configuration.md _site/docs/
+
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Publish the setup page
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Show the setup page address
+        run: |
+          {
+            echo '## Template setup page published'
+            echo
+            echo "Use ${{ steps.deploy.outputs.page_url }}setup/ when creating a blog repository."
+          } >> "$GITHUB_STEP_SUMMARY"

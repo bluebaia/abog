@@ -1,0 +1,117 @@
+name: Update theme
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Monthly on day 1 at 10:17 Asia/Shanghai; scheduled runs may be delayed by GitHub.
+    - cron: '17 2 1 * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-blog-theme
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+          run_install: false
+
+      - name: Validate the canonical blog configuration
+        run: node scripts/validate-blog-config.mjs
+
+      - name: Prepare the active theme release proposal
+        id: prepare
+        shell: bash
+        run: |
+          theme_id="$(node -p "JSON.parse(require('node:fs').readFileSync('.blog/config.json', 'utf8')).theme.id")"
+          echo "theme_id=$theme_id" >> "$GITHUB_OUTPUT"
+          case "$theme_id" in
+            astro-paper) node scripts/update-blog-template.mjs --latest --propose ;;
+            astro-cactus) node scripts/update-cactus-theme.mjs --latest --propose ;;
+            *) echo "Unsupported active theme: $theme_id" >&2; exit 1 ;;
+          esac
+
+      - name: Synchronize public assets
+        run: node scripts/sync-blog-assets.mjs
+
+      - name: Install theme dependencies
+        run: pnpm --dir blog install --frozen-lockfile --ignore-scripts
+
+      - name: Validate updated theme
+        run: pnpm --dir blog exec astro check
+
+      - name: Verify generated site output
+        run: pnpm --dir blog run build
+
+      - name: Record verified source version
+        shell: bash
+        env:
+          THEME_ID: ${{ steps.prepare.outputs.theme_id }}
+        run: |
+          case "$THEME_ID" in
+            astro-paper) node scripts/update-blog-template.mjs --record-current ;;
+            astro-cactus) node scripts/update-cactus-theme.mjs --record-current ;;
+            *) echo "Unsupported active theme: $THEME_ID" >&2; exit 1 ;;
+          esac
+
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/update-${{ steps.prepare.outputs.theme_id }}
+          delete-branch: true
+          commit-message: "chore(theme): update ${{ steps.prepare.outputs.theme_id }} source"
+          title: "chore(theme): update ${{ steps.prepare.outputs.theme_id }} source"
+          body: |
+            Monthly proposal for the latest stable release of the active theme. The exact source ref and commit are pinned in its compatibility registry after validation.
+
+            Review the source version, theme changes, and validation result before merging. This PR does not update site settings or blog content.
+
+      - name: Save candidate changes if validation fails
+        id: capture-patch
+        if: failure()
+        shell: bash
+        env:
+          THEME_ID: ${{ steps.prepare.outputs.theme_id }}
+        run: |
+          if git diff --quiet -- blog .template/theme-source.json; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            theme_id="${THEME_ID:-unknown}"
+            patch_path="$RUNNER_TEMP/${theme_id}-unverified-candidate.patch"
+            git diff --binary -- blog .template/theme-source.json > "$patch_path"
+            echo "patch_path=$patch_path" >> "$GITHUB_OUTPUT"
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Explain the unverified candidate artifact
+        if: failure() && steps.capture-patch.outputs.available == 'true'
+        env:
+          THEME_ID: ${{ steps.prepare.outputs.theme_id }}
+        run: |
+          {
+            echo "## Unverified ${THEME_ID:-theme} candidate"
+            echo
+            echo "The artifact contains candidate theme files and matching source metadata for local repair and validation. It excludes compatibility registries and does not mark this source as verified."
+            echo "Do not treat it as an approved update; repair the candidate and rerun validation before recording it as verified."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: failure() && steps.capture-patch.outputs.available == 'true'
+        with:
+          name: ${{ steps.prepare.outputs.theme_id }}-unverified-candidate
+          path: ${{ steps.capture-patch.outputs.patch_path }}
+          if-no-files-found: error

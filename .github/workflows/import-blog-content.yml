@@ -1,0 +1,148 @@
+name: Import existing blog content
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preview the changes first, then apply the reviewed plan
+        required: true
+        type: choice
+        options:
+          - preview
+          - apply
+      source_url:
+        description: Public GitHub URL of the existing blog repository
+        required: true
+        type: string
+      source_ref:
+        description: Optional branch or tag to import
+        required: false
+        type: string
+      source_subdirectory:
+        description: Optional path to the blog project inside the repository
+        required: false
+        type: string
+      expected_plan_sha256:
+        description: Required for apply; copy this value from the reviewed preview
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blog-mutations-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    if: ${{ inputs.mode == 'preview' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Validate the target blog configuration
+        run: node scripts/validate-blog-config.mjs
+
+      - name: Review the import plan
+        env:
+          SOURCE_URL: ${{ inputs.source_url }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_SUBDIRECTORY: ${{ inputs.source_subdirectory }}
+        shell: bash
+        run: |
+          args=(--source-url "$SOURCE_URL" --preview)
+          if [[ -n "$SOURCE_REF" ]]; then args+=(--ref "$SOURCE_REF"); fi
+          if [[ -n "$SOURCE_SUBDIRECTORY" ]]; then args+=(--subdirectory "$SOURCE_SUBDIRECTORY"); fi
+          node scripts/import-blog-content.mjs "${args[@]}"
+
+  apply:
+    if: ${{ inputs.mode == 'apply' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Validate the target blog configuration
+        run: node scripts/validate-blog-config.mjs
+
+      - name: Apply the reviewed import plan
+        env:
+          SOURCE_URL: ${{ inputs.source_url }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_SUBDIRECTORY: ${{ inputs.source_subdirectory }}
+          EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+        shell: bash
+        run: |
+          args=(--source-url "$SOURCE_URL" --apply --expected-plan-sha "$EXPECTED_PLAN_SHA256")
+          if [[ -n "$SOURCE_REF" ]]; then args+=(--ref "$SOURCE_REF"); fi
+          if [[ -n "$SOURCE_SUBDIRECTORY" ]]; then args+=(--subdirectory "$SOURCE_SUBDIRECTORY"); fi
+          node scripts/import-blog-content.mjs "${args[@]}"
+
+      - name: Synchronize public assets
+        run: node scripts/sync-blog-assets.mjs
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+          run_install: false
+
+      - name: Install active theme dependencies
+        run: pnpm --dir blog install --frozen-lockfile --ignore-scripts
+
+      - name: Check imported site content
+        run: pnpm --dir blog exec astro check
+
+      - name: Prepare the Pages site
+        run: pnpm --dir blog run build
+
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: blog/dist
+
+      - name: Publish the imported snapshot
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Save the imported snapshot and receipt
+        env:
+          BLOG_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .blog/content/posts .blog/assets/imported .blog/imports/receipt.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs: import existing blog content'
+            git push origin "HEAD:${BLOG_DEFAULT_BRANCH}"
+          fi
+
+      - name: Confirm the imported site
+        env:
+          PAGE_URL: ${{ steps.deploy.outputs.page_url }}
+        run: |
+          {
+            echo '## Existing content imported'
+            echo
+            echo "The reviewed snapshot is live at ${PAGE_URL}."
+          } >> "$GITHUB_STEP_SUMMARY"

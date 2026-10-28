@@ -1,0 +1,103 @@
+name: Configure BlogKit
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: Paste the complete JSON copied from the setup page
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blog-mutations-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Validate settings and prepare writing spaces
+        id: configure
+        env:
+          BLOG_CONFIGURATION: ${{ inputs.configuration }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/configure-blog.mjs
+
+      - name: Prepare the selected theme
+        env:
+          BLOG_THEME: ${{ steps.configure.outputs.theme_id }}
+        run: node scripts/switch-blog-theme.mjs --theme "$BLOG_THEME"
+
+      - name: Synchronize public assets
+        run: node scripts/sync-blog-assets.mjs
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+          run_install: false
+
+      - name: Install blog dependencies
+        run: pnpm --dir blog install --frozen-lockfile --ignore-scripts
+
+      - name: Check the selected theme
+        run: pnpm --dir blog exec astro check
+
+      - name: Prepare the Pages site
+        if: steps.configure.outputs.publish_ready == 'true'
+        run: pnpm --dir blog run build
+
+      - name: Save configuration and resource identifiers
+        env:
+          BLOG_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .blog/config.json .template/state.json .template/theme-source.json blog
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: configure public blog'
+            git push origin "HEAD:${BLOG_DEFAULT_BRANCH}"
+          fi
+
+      - name: Upload the Pages artifact
+        if: steps.configure.outputs.publish_ready == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: blog/dist
+
+      - name: Publish the site
+        if: steps.configure.outputs.publish_ready == 'true'
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Explain the Pages setup
+        if: steps.configure.outputs.publish_ready != 'true'
+        run: |
+          {
+            echo '## One GitHub Pages setting remains'
+            echo
+            echo 'The settings and writing spaces are saved. Open **Settings → Pages**, choose **GitHub Actions** as the source, then run **Configure public blog** again to publish.'
+            echo
+            echo "[Open Pages settings](https://github.com/${GITHUB_REPOSITORY}/settings/pages)"
+          } >> "$GITHUB_STEP_SUMMARY"

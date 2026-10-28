@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "themes": {
+    "astro-paper": {
+      "id": "astro-paper",
+      "repository": "https://github.com/satnaing/astro-paper.git",
+      "ref": "v6.1.0",
+      "commit": "4c33a60529f9c443145a89fe526ff231c009272d",
+      "fileManifest": "scripts/theme-files/astro-paper.json",
+      "adapterVersion": 1,
+      "nodeVersion": 24,
+      "framework": "AstroPaper",
+      "capabilities": {
+        "core": [
+          "stable-article-addresses",
+          "images",
+          "search",
+          "tags",
+          "rss",
+          "project-subpath"
+        ],
+        "optional": [
+          "archives",
+          "social-sharing",
+          "generated-social-images"
+        ]
+      }
+    },
+    "astro-cactus": {
+      "id": "astro-cactus",
+      "repository": "https://github.com/chrismwilliams/astro-theme-cactus.git",
+      "ref": "v8.3.0",
+      "commit": "82eabb6151a8e47838cb7f6d12ea29451926bd3e",
+      "fileManifest": "scripts/theme-files/astro-cactus.json",
+      "adapterVersion": 1,
+      "nodeVersion": 24,
+      "framework": "Astro Cactus",
+      "capabilities": {
+        "core": [
+          "stable-article-addresses",
+          "images",
+          "search",
+          "tags",
+          "rss",
+          "project-subpath"
+        ],
+        "optional": [
+          "generated-social-images"
+        ]
+      }
+    }
+  }
+}
