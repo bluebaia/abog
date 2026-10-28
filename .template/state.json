@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "resources": {
+    "noteContainer": {
+      "number": 1,
+      "url": "https://github.com/bluebaia/abog/issues/1",
+      "marker": "<!-- blogkit:note-container:v1 -->"
+    }
+  }
+}

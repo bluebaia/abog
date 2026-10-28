@@ -1,5 +1,15 @@
 {
   "schemaVersion": 1,
+  "repository": {
+    "owner": "bluebaia",
+    "name": "abog",
+    "defaultBranch": "main"
+  },
+  "writing": {
+    "noteLabel": "Note",
+    "blogLabel": "Blog",
+    "noteContainerTitle": "Notes"
+  },
   "theme": {
     "id": "astro-paper",
     "options": {
@@ -8,19 +18,20 @@
     }
   },
   "site": {
-    "url": "https://example.github.io/your-blog/",
-    "title": "Your Blog",
+    "url": "https://bluebaia.github.io/abog/",
+    "title": "Hello world!",
     "description": "A blog powered by Astro.",
-    "author": "Your Name",
+    "author": "bluebaia",
+    "profile": "https://github.com/bluebaia",
     "ogImage": "default-og.jpg",
-    "lang": "en",
-    "timezone": "UTC",
+    "lang": "zh-CN",
+    "timezone": "Asia/Shanghai",
     "dir": "ltr"
   },
   "home": {
-    "title": "Hello World",
-    "description": "Welcome to your new blog.",
-    "readmeUrl": "https://github.com/example/your-blog"
+    "title": "Hello world!",
+    "description": "Welcome to abog.",
+    "readmeUrl": "https://github.com/bluebaia/abog"
   },
   "posts": {
     "perPage": 10,
@@ -37,7 +48,12 @@
     },
     "search": "pagefind"
   },
-  "socials": [],
+  "socials": [
+    {
+      "name": "github",
+      "url": "https://github.com/bluebaia"
+    }
+  ],
   "shareLinks": [
     {
       "name": "whatsapp",
@@ -63,15 +79,5 @@
       "name": "mail",
       "url": "mailto:?subject=See%20this%20post&body="
     }
-  ],
-  "repository": {
-    "owner": "example",
-    "name": "your-blog",
-    "defaultBranch": "main"
-  },
-  "writing": {
-    "noteLabel": "Note",
-    "blogLabel": "Blog",
-    "noteContainerTitle": "Notes"
-  }
+  ]
 }
